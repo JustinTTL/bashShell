@@ -16,11 +16,14 @@
 
 #define BUFFER_SIZE 64
 
+/* Function Declaration */
 void run_shell();
 void process_instructions(char *prompt);
 void execute_instructions(char *instructions[]);
 char **separate_string(char *string, char *delim);
 void launch(char *instructions[], pid_t *child_pid);
+
+/* Operations Enumeration and lookup function */
 enum ops {CD, CLR, DIR, ENVIRON, ECHO, HELP, PAUSE, QUIT, ITEM_NONE};
 const char* lookup_table[] = { "cd", "clr", "dir", "environ", "echo", "help", "pause", "quit" };
 
@@ -32,6 +35,7 @@ int lookup(char* op) {
     return ITEM_NONE;
 }
 
+/* Calls Shell infinite loop */
 int main(int argc, char *argv[]) {
 	(void)argc;
 	(void)argv;
@@ -64,9 +68,8 @@ void run_shell() {
 }
 
 
-/* Returns array of strings for each word in input */
+/* Executes instructions in a line */
 void process_instructions(char *prompt) {
-	
 	char **instruction_list = separate_string(prompt, ";");
 
 	/* Second iteration to seperate individual arguments within instruction */
@@ -77,9 +80,11 @@ void process_instructions(char *prompt) {
 	}
 
 	free(instruction_list);
+	return;
 }
 
 
+/* Execute Individual Operations */
 void execute_instructions(char *instructions[]) {
 	char *instruction = instructions[0];
 	pid_t child_pid = 0;
@@ -95,38 +100,21 @@ void execute_instructions(char *instructions[]) {
 	}
 
 	return;
+}
 
-
-	
-	// for (int i=0; instructions[i] != NULL; i++) {
-	// 	if (strcmp(instructions[i], "echo") == 0) {
-	// 		i++;
-	// 		while(instructions[i] != NULL) {
-	// 			printf("%s ", instructions[i]);
-	// 			i++;
-	// 		}
-	// 		printf("\n");
-	// 		return;
-	// 	}
-	// 	else if (strcmp(instructions[i], "clr") == 0) {
-	// 		printf("\033[H\033[J");
-	// 	}
-	// 	else if (strcmp(instructions[i], "pause") == 0) {
-	// 		system("read");		
-	// 	}
-	// 	else if (strcmp(instructions[i], "help") == 0) {
-	// 	}
-	// 	else if (strcmp(instructions[i], "quit") == 0)	 {
-	// 		exit(EXIT_SUCCESS);
-	// 	}
-	// 	else if (strcmp(instructions[i], "\n") == 0) {
-	// 		return;
-	// 	}
-	// 	else {
-	// 		printf("%s: Command not found.\n", instructions[i]);
-	// 		return;
-	// 	}	
-	// }
+void launch(char *instructions[], pid_t *child_pid) {
+	char *envp [] = {NULL};
+	/* Forking */
+	*child_pid = fork();
+		/* Error Checking or Parent Breaking*/
+		if(*child_pid != 0){  
+			if(*child_pid < 0)
+				fprintf(stderr, "Forking Error\n");
+			return;
+		}
+		/* Child Process */
+		else 
+			execve(instructions[0], instructions, envp);
 }
 
 
@@ -158,18 +146,4 @@ char **separate_string(char *string, char *delim) {
 	string_list[i] = NULL;
 
 	return string_list;
-}
-void launch(char *instructions[], pid_t *child_pid) {
-	char *envp [] = {NULL};
-	/* Forking */
-	*child_pid = fork();
-		/* Error Checking or Parent Breaking*/
-		if(*child_pid != 0){  
-			if(*child_pid < 0)
-				fprintf(stderr, "Forking Error\n");
-			return;
-		}
-		/* Child Process */
-		else 
-			execve(instructions[0], instructions, envp);
 }
