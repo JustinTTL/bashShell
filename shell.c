@@ -31,18 +31,18 @@ int main(int argc, char *argv[]) {
 /* Main loop to read in new lines of input */
 void run_shell() {
 	while (1) {
-		// TODO EOF stuff
+		/* TODO EOF stuff */
 		char *prompt = NULL;
 		size_t size = 0;
 		printf("&> ");
-		getline(&prompt, &size, stdin);
-		char first = prompt[0];
-		if (first != '\n')
-			prompt = strtok(prompt, "\n");
-		if (prompt == NULL) {
+		int input_size = (int)getline(&prompt, &size, stdin);
+		if(input_size == -1){
 			printf("\n");
 			exit(EXIT_SUCCESS);
 		}
+
+		prompt = strtok(prompt, "\n");
+
 		/* Pull out instructions in input */
 		process_instructions(prompt);
 		free(prompt);
