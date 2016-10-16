@@ -11,7 +11,7 @@ CFLAGS = -g -std=gnu99 -Wall -Wextra -Werror -Wfatal-errors -pedantic -lpthread 
 
 ############### Rules ###############
 
-all: shell echo pause 
+all: shell echo pause clr
 
 ## Compile step (.c files -> .o files)
 
@@ -27,6 +27,7 @@ echo: echo.o
 	$(CC) -o echo echo.c $(CFLAGS) 
 pause: pause.o
 	$(CC) -o pause pause.c $(CFLAGS) 
-
+clr: clr.o
+	$(CC) -o clr clr.c $(CFLAGS) 
 clean:
-	rm -f *.o core* *~shell *~echo *~pause
+	rm -f *.o core* *~shell *~echo *~pause *~clr
