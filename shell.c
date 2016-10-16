@@ -83,37 +83,13 @@ void process_instructions(char *prompt) {
 void execute_instructions(char *instructions[]) {
 	char *instruction = instructions[0];
 	pid_t child_pid = 0;
-	switch(lookup(instruction)){
-		case CD:
-			break;
-
-		case CLR:
-			break;
-
-		case DIR:
-			break;
-
-		case ENVIRON:
-			break;
-
-		case ECHO:
-			launch(instructions, &child_pid);
-			break;
-		case HELP:
-			break;
-
-		case PAUSE:
-			launch(instructions, &child_pid);
-			break;
-		case QUIT:
-			exit(EXIT_SUCCESS);
-			break; 
-
-		case ITEM_NONE:
-			printf("%s: Command not found.\n", instruction);
-			break;
+	if (lookup(instruction) != ITEM_NONE){
+		launch(instructions, &child_pid);
 	}
-
+	else {
+		printf("%s: Command not found.\n", instruction);
+	}
+		
 	if (child_pid > 0){
 		waitpid(child_pid, NULL, 0);
 	}
