@@ -11,7 +11,7 @@ CFLAGS = -g -std=gnu99 -Wall -Wextra -Werror -Wfatal-errors -pedantic -lpthread 
 
 ############### Rules ###############
 
-all: shell echo pause
+all: shell echo pause 
 
 ## Compile step (.c files -> .o files)
 

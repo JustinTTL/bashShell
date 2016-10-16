@@ -88,6 +88,9 @@ void process_instructions(char *prompt) {
 void execute_instructions(char *instructions[]) {
 	char *instruction = instructions[0];
 	pid_t child_pid = 0;
+	if (strcmp(instruction, "quit") == 0) {
+		exit(EXIT_SUCCESS);
+	}
 	if (lookup(instruction) != ITEM_NONE){
 		launch(instructions, &child_pid);
 	}
@@ -98,7 +101,6 @@ void execute_instructions(char *instructions[]) {
 	if (child_pid > 0){
 		waitpid(child_pid, NULL, 0);
 	}
-
 	return;
 }
 
@@ -115,9 +117,8 @@ void launch(char *instructions[], pid_t *child_pid) {
 		/* Child Process */
 		else 
 			execve(instructions[0], instructions, envp);
+		
 }
-
-
 /* Takes string and seperates by delim into several strings */
 char **separate_string(char *string, char *delim) {
 
