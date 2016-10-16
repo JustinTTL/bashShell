@@ -18,9 +18,9 @@
 
 void run_shell();
 void process_instructions(char *prompt);
-void execute_instructions(char **instructions);
+void execute_instructions(char *instructions[]);
 char **separate_string(char *string, char *delim);
-
+void launch(char *instructions[], pid_t *child_pid);
 enum ops {CD, CLR, DIR, ENVIRON, ECHO, HELP, PAUSE, QUIT, ITEM_NONE};
 const char* lookup_table[] = { "cd", "clr", "dir", "environ", "echo", "help", "pause", "quit" };
 
@@ -80,11 +80,8 @@ void process_instructions(char *prompt) {
 }
 
 
-void execute_instructions(char **instructions) {
+void execute_instructions(char *instructions[]) {
 	char *instruction = instructions[0];
-	char *envp [] = {NULL};
-
-	/* Forking */
 	pid_t child_pid = 0;
 	switch(lookup(instruction)){
 		case CD:
@@ -100,30 +97,14 @@ void execute_instructions(char **instructions) {
 			break;
 
 		case ECHO:
-			child_pid = fork();
-			/* Error Checking or Parent Breaking*/
-			if(child_pid != 0){  
-				if(child_pid < 0)
-					fprintf(stderr, "Forking Error\n");
-				break;
-			}
-			/* Child Process */
-			else 
-				execve("echo", instructions, envp);
+			launch(instructions, &child_pid);
+			break;
 		case HELP:
 			break;
 
 		case PAUSE:
-			child_pid = fork();
-			/* Error Checking or Parent Breaking*/
-			if(child_pid != 0){  
-				if(child_pid < 0)
-					fprintf(stderr, "Forking Error\n");
-				break;
-			}
-			/* Child Process */
-			else 
-				execve("pause", instructions, envp);
+			launch(instructions, &child_pid);
+			break;
 		case QUIT:
 			exit(EXIT_SUCCESS);
 			break; 
@@ -201,4 +182,18 @@ char **separate_string(char *string, char *delim) {
 	string_list[i] = NULL;
 
 	return string_list;
+}
+void launch(char *instructions[], pid_t *child_pid) {
+	char *envp [] = {NULL};
+	/* Forking */
+	*child_pid = fork();
+		/* Error Checking or Parent Breaking*/
+		if(*child_pid != 0){  
+			if(*child_pid < 0)
+				fprintf(stderr, "Forking Error\n");
+			return;
+		}
+		/* Child Process */
+		else 
+			execve(instructions[0], instructions, envp);
 }
