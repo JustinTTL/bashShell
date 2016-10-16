@@ -85,12 +85,34 @@ void execute_instructions(char **instructions) {
 	char **params = &instructions[1];
 
 	switch(lookup(instruction)){
+		case CD:
+			break;
+
+		case CLR:
+			break;
+
+		case DIR:
+			break;
+
+		case ENVIRON:
+			break;
+
 		case ECHO:
 			for(int i = 0; params[i] != NULL; i++){
 				printf("%s ", params[i]);
 			}
 			printf("\n");
 			break;
+
+		case HELP:
+			break;
+
+		case PAUSE:
+			break;
+
+		case QUIT:
+			exit(EXIT_SUCCESS);
+			break; 
 
 		case ITEM_NONE:
 			printf("%s: Command not found.\n", instruction);
