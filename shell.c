@@ -17,11 +17,12 @@
 #define BUFFER_SIZE 64
 
 /* Function Declaration */
-void run_shell();
+void run_shell(FILE *fp);
 void process_instructions(char *prompt);
 void execute_instructions(char *instructions[]);
 char **separate_string(char *string, char *delim);
 void launch(char *instructions[], pid_t *child_pid);
+char **re_size(char *string_list[], int *size);
 
 /* Operations Enumeration and lookup function */
 enum ops {CD, CLR, DIR, ENVIRON, ECHO, HELP, PAUSE, QUIT, ITEM_NONE};
@@ -32,24 +33,35 @@ int lookup(char* op) {
     for(int i=0; i != available_ops; i++)
         if (strcmp(op, lookup_table[i]) == 0)
             return i;
-    return ITEM_NONE;
+    return -1;
 }
-
 /* Calls Shell infinite loop */
 int main(int argc, char *argv[]) {
-	(void)argc;
-	(void)argv;
-	run_shell(); 
-	return EXIT_SUCCESS;
+	FILE *fp;
+	if (argc > 2) {
+		fprintf(stderr, "Too many arguments\n");
+		exit(EXIT_FAILURE);
+	}
+	else if (argc == 1)
+		fp = stdin;
+	else {
+		fp = fopen(argv[1], "r");
+		if (fp == NULL){
+			fprintf(stderr, "Error opening file\n");
+			exit(EXIT_FAILURE);
+		}
+	}
+	run_shell(fp);
+	return(EXIT_SUCCESS);
 }
-
-/* Main loop to read in new lines of input */
-void run_shell() {
+void run_shell(FILE *fp) {
 	while (1) {
 		char *raw_prompt = NULL;
 		size_t size = 0;
-		printf("&> ");
-		int input_size = (int)getline(&raw_prompt, &size, stdin);
+		int input_size = 0;
+		if (fp == stdin)
+			printf("%s > ", getenv("PWD"));
+		input_size = (int)getline(&raw_prompt, &size, fp);	
 
 		/* EOF Handling */
 		if(input_size == -1){
@@ -64,10 +76,8 @@ void run_shell() {
 		/* Pull out instructions in input */
 		process_instructions(prompt);
 		free(raw_prompt);
-	}
+	} 
 }
-
-
 /* Executes instructions in a line */
 void process_instructions(char *prompt) {
 	char **instruction_list = separate_string(prompt, ";");
@@ -75,14 +85,14 @@ void process_instructions(char *prompt) {
 	/* Second iteration to seperate individual arguments within instruction */
 	for (int i = 0; instruction_list[i] != NULL; i++) {
 		char **args = separate_string(instruction_list[i], " ");
-		execute_instructions(args);
-		free(args);
+		if (args[0] != NULL) {
+			execute_instructions(args);
+			free(args);
+		}
 	}
-
 	free(instruction_list);
 	return;
 }
-
 
 /* Execute Individual Operations */
 void execute_instructions(char *instructions[]) {
@@ -91,7 +101,7 @@ void execute_instructions(char *instructions[]) {
 	if (strcmp(instruction, "quit") == 0) {
 		exit(EXIT_SUCCESS);
 	}
-	if (lookup(instruction) != ITEM_NONE){
+	if (lookup(instruction) != -1){
 		launch(instructions, &child_pid);
 	}
 	else {
@@ -136,15 +146,12 @@ char **separate_string(char *string, char *delim) {
 
 		/* Resizes if reaches buffer limit */
 		if (i == size) {
-			size = size*2;
+			size = size * 2;
 			string_list = realloc(string_list, size * sizeof(*string_list));
 			assert(string_list != NULL);
 		}
-
 		indiv_string = strtok(NULL, delim);
 	}
-
 	string_list[i] = NULL;
-
 	return string_list;
 }
