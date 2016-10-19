@@ -15,11 +15,20 @@
 #include <assert.h>
 
 #define BUFFER_SIZE 64
+#define NOT_FOUND -1
+#define SUCCESS 1
+#define ERROR -1
+
+typedef struct args_io_struct{
+	char **instruction_list;
+	FILE *output_file;
+}args_io_struct;
 
 /* Function Declaration */
 void run_shell(FILE *fp);
 void process_instructions(char *prompt);
-void execute_instructions(char *instructions[]);
+void execute_instructions(args_io_struct instruction_io);
+int handle_pipe(char *argu_v[], args_io_struct *instruction_io);
 char **separate_string(char *string, char *delim);
 void launch(char *instructions[], pid_t *child_pid);
 char **re_size(char *string_list[], int *size);
@@ -35,6 +44,8 @@ int lookup(char* op) {
             return i;
     return -1;
 }
+
+
 /* Calls Shell infinite loop */
 int main(int argc, char *argv[]) {
 	FILE *fp;
@@ -54,6 +65,7 @@ int main(int argc, char *argv[]) {
 	run_shell(fp);
 	return(EXIT_SUCCESS);
 }
+
 void run_shell(FILE *fp) {
 	while (1) {
 		char *raw_prompt = NULL;
@@ -78,39 +90,108 @@ void run_shell(FILE *fp) {
 		free(raw_prompt);
 	} 
 }
+
 /* Executes instructions in a line */
 void process_instructions(char *prompt) {
 	char **instruction_list = separate_string(prompt, ";");
 
 	/* Second iteration to seperate individual arguments within instruction */
 	for (int i = 0; instruction_list[i] != NULL; i++) {
-		char **args = separate_string(instruction_list[i], " ");
-		if (args[0] != NULL) {
-			execute_instructions(args);
-			free(args);
+		char **argu_v = separate_string(instruction_list[i], " ");
+		args_io_struct instruction_io;
+		int pipe_status = handle_pipe(argu_v, &instruction_io);
+
+
+		if (pipe_status == ERROR){
+			free(argu_v);
+		} 
+		else if (argu_v[0] != NULL) {
+			execute_instructions(instruction_io);
+			free(argu_v);
+			if (instruction_io.output_file != stdin){
+				fclose(instruction_io.output_file);
+			}
 		}
 	}
+
 	free(instruction_list);
 	return;
 }
 
+
+int handle_pipe(char *argu_v[], args_io_struct *instruction_io) {
+	int pipe_loc = NOT_FOUND;
+	int i;
+	char *io_mode;
+
+	for (i = 0; argu_v[i] != NULL; i++) {
+		/* Overwrite Mode */
+		if (strcmp(argu_v[i], ">") == 0){
+			pipe_loc = i;
+			io_mode = "w";
+		}
+		/* Appending Mode */
+		if (strcmp(argu_v[i], ">>") == 0){
+			pipe_loc = i;
+			io_mode = "a";
+		}
+	}
+
+	if(pipe_loc == NOT_FOUND){
+		instruction_io -> instruction_list = argu_v;
+		instruction_io -> output_file = stdin;
+		return SUCCESS;
+	}
+	else {
+		int num_argu = (i - 1) - pipe_loc;
+		if (num_argu == 1){
+			FILE *out_file = fopen(argu_v[pipe_loc+1], io_mode);
+			if (out_file == NULL) {
+				printf("Error: Cannot open file.\n");
+				return ERROR;
+			}
+			else {
+				argu_v[pipe_loc] = NULL;
+				instruction_io -> instruction_list = argu_v;
+				instruction_io -> output_file = out_file;
+				return SUCCESS;
+			}
+		}
+		else if (num_argu == 0) {
+			printf("Error: No pipeline arguements.\n");
+			return ERROR;
+		}
+		else {
+			printf("Error: Too many pipeline arguements.\n");
+			return ERROR;
+		}
+	}
+}
+
+
 /* Execute Individual Operations */
-void execute_instructions(char *instructions[]) {
+void execute_instructions(args_io_struct instruction_io) {
 	char *instruction = instructions[0];
 	pid_t child_pid = 0;
+
 	if (strcmp(instruction, "quit") == 0) {
 		exit(EXIT_SUCCESS);
 	}
-	if (lookup(instruction) != -1){
+	else if (strcmp(instruction, "cd") == 0) {
+		exit(EXIT_SUCCESS);
+	}
+	else if (lookup(instruction) != -1){
 		launch(instructions, &child_pid);
 	}
 	else {
 		printf("%s: Command not found.\n", instruction);
 	}
-		
+	
+	/* Wait for Child Process */	
 	if (child_pid > 0){
 		waitpid(child_pid, NULL, 0);
 	}
+
 	return;
 }
 
