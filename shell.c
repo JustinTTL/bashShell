@@ -30,7 +30,7 @@ void process_instructions(char *prompt);
 void execute_instructions(args_io_struct instruction_io);
 int handle_pipe(char *argu_v[], args_io_struct *instruction_io);
 char **separate_string(char *string, char *delim);
-void launch(char *instructions[], pid_t *child_pid);
+void launch(args_io_struct instruction_io, pid_t *child_pid);
 char **re_size(char *string_list[], int *size);
 
 /* Operations Enumeration and lookup function */
@@ -42,7 +42,7 @@ int lookup(char* op) {
     for(int i=0; i != available_ops; i++)
         if (strcmp(op, lookup_table[i]) == 0)
             return i;
-    return -1;
+    return NOT_FOUND;
 }
 
 
@@ -171,7 +171,7 @@ int handle_pipe(char *argu_v[], args_io_struct *instruction_io) {
 
 /* Execute Individual Operations */
 void execute_instructions(args_io_struct instruction_io) {
-	char *instruction = instructions[0];
+	char *instruction = instruction_io.instruction_list[0];
 	pid_t child_pid = 0;
 
 	if (strcmp(instruction, "quit") == 0) {
@@ -180,8 +180,8 @@ void execute_instructions(args_io_struct instruction_io) {
 	else if (strcmp(instruction, "cd") == 0) {
 		exit(EXIT_SUCCESS);
 	}
-	else if (lookup(instruction) != -1){
-		launch(instructions, &child_pid);
+	else if (lookup(instruction) != NOT_FOUND){
+		launch(instruction_io, &child_pid);
 	}
 	else {
 		printf("%s: Command not found.\n", instruction);
@@ -195,8 +195,9 @@ void execute_instructions(args_io_struct instruction_io) {
 	return;
 }
 
-void launch(char *instructions[], pid_t *child_pid) {
+void launch(args_io_struct instruction_io, pid_t *child_pid) {
 	char *envp [] = {NULL};
+
 	/* Forking */
 	*child_pid = fork();
 		/* Error Checking or Parent Breaking*/
@@ -206,8 +207,10 @@ void launch(char *instructions[], pid_t *child_pid) {
 			return;
 		}
 		/* Child Process */
-		else 
-			execve(instructions[0], instructions, envp);
+		else{
+			dup2(fileno(instruction_io.output_file), 1);
+			execve(instruction_io.instruction_list[0], instruction_io.instruction_list, envp);
+		}
 		
 }
 /* Takes string and seperates by delim into several strings */
