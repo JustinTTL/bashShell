@@ -13,26 +13,34 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <assert.h>
+#include <pthread.h>
+#include <signal.h>
 
 #define BUFFER_SIZE 64
 #define NOT_FOUND -1
 #define SUCCESS 1
 #define ERROR -1
+#define BCKGRND 0
+#define FRGRND 1
+
+//static int PROMPT_READY = 1;
+static int RETURN_PROCESS = NOT_FOUND;
 
 typedef struct args_io_struct{
 	char **instruction_list;
 	FILE *output_file;
+	int wait_status;
 }args_io_struct;
 
 /* Function Declaration */
 void run_shell(FILE *fp);
 void process_instructions(char *prompt);
 void execute_instructions(args_io_struct instruction_io);
-int handle_pipe(char *argu_v[], args_io_struct *instruction_io);
+int handle_pipe_background(args_io_struct *instruction_io);
 char **separate_string(char *string, char *delim);
 void launch(args_io_struct instruction_io, pid_t *child_pid);
 char **re_size(char *string_list[], int *size);
-
+void background_handler(int signo);
 /* Operations Enumeration and lookup function */
 enum ops {CD, CLR, DIR, ENVIRON, ECHO, HELP, PAUSE, QUIT, ITEM_NONE};
 const char* lookup_table[] = { "cd", "clr", "dir", "environ", "echo", "help", "pause", "quit" };
@@ -43,6 +51,15 @@ int lookup(char* op) {
         if (strcmp(op, lookup_table[i]) == 0)
             return i;
     return NOT_FOUND;
+}
+
+void background_handler(int signo) {
+	(void)signo;
+	pid_t pid;
+	pid = wait(NULL);
+	if (pid > 0) {
+		RETURN_PROCESS = pid;
+	}	
 }
 
 
@@ -67,12 +84,19 @@ int main(int argc, char *argv[]) {
 }
 
 void run_shell(FILE *fp) {
+	signal(SIGCHLD, background_handler);
 	while (1) {
 		char *raw_prompt = NULL;
 		size_t size = 0;
 		int input_size = 0;
-		if (fp == stdin)
-			printf("%s > ", getenv("PWD"));
+		if (RETURN_PROCESS != NOT_FOUND) {
+			printf("[1]+ Done\n");
+			RETURN_PROCESS = NOT_FOUND;
+		}
+		if (fp == stdin) {
+			char buffer[200];
+			printf("%s > ", getcwd(buffer, sizeof(buffer)));
+		}
 		input_size = (int)getline(&raw_prompt, &size, fp);	
 
 		/* EOF Handling */
@@ -99,16 +123,20 @@ void process_instructions(char *prompt) {
 	for (int i = 0; instruction_list[i] != NULL; i++) {
 		char **argu_v = separate_string(instruction_list[i], " ");
 		args_io_struct instruction_io;
-		int pipe_status = handle_pipe(argu_v, &instruction_io);
+		instruction_io.instruction_list = argu_v;
+		instruction_io.output_file = stdout;
+		instruction_io.wait_status = FRGRND;
+
+		int status = handle_pipe_background(&instruction_io);
 
 
-		if (pipe_status == ERROR){
+		if (status == ERROR){
 			free(argu_v);
 		} 
 		else if (argu_v[0] != NULL) {
 			execute_instructions(instruction_io);
 			free(argu_v);
-			if (instruction_io.output_file != stdin){
+			if (instruction_io.output_file != stdout){
 				fclose(instruction_io.output_file);
 			}
 		}
@@ -119,40 +147,48 @@ void process_instructions(char *prompt) {
 }
 
 
-int handle_pipe(char *argu_v[], args_io_struct *instruction_io) {
+int handle_pipe_background(args_io_struct *instruction_io) {
 	int pipe_loc = NOT_FOUND;
 	int i;
 	char *io_mode;
 
-	for (i = 0; argu_v[i] != NULL; i++) {
+	for (i = 0; instruction_io -> instruction_list[i] != NULL; i++) {
 		/* Overwrite Mode */
-		if (strcmp(argu_v[i], ">") == 0){
+		if (strcmp(instruction_io -> instruction_list[i], ">") == 0){
 			pipe_loc = i;
 			io_mode = "w";
 		}
 		/* Appending Mode */
-		if (strcmp(argu_v[i], ">>") == 0){
+		if (strcmp(instruction_io -> instruction_list[i], ">>") == 0){
 			pipe_loc = i;
 			io_mode = "a";
+		}
+		if (strcmp(instruction_io -> instruction_list[i], "&") == 0){
+			if (instruction_io -> instruction_list[i + 1] == NULL) {
+				instruction_io -> wait_status = BCKGRND;
+				instruction_io -> instruction_list[i] = NULL;
+			}
+			else {
+				printf("Error: Misplaced & token\n");
+				return ERROR;
+			}
+
 		}
 	}
 
 	if(pipe_loc == NOT_FOUND){
-		instruction_io -> instruction_list = argu_v;
-		instruction_io -> output_file = stdin;
 		return SUCCESS;
 	}
 	else {
 		int num_argu = (i - 1) - pipe_loc;
 		if (num_argu == 1){
-			FILE *out_file = fopen(argu_v[pipe_loc+1], io_mode);
+			FILE *out_file = fopen(instruction_io -> instruction_list[pipe_loc+1], io_mode);
 			if (out_file == NULL) {
 				printf("Error: Cannot open file.\n");
 				return ERROR;
 			}
 			else {
-				argu_v[pipe_loc] = NULL;
-				instruction_io -> instruction_list = argu_v;
+				instruction_io -> instruction_list[pipe_loc] = NULL;
 				instruction_io -> output_file = out_file;
 				return SUCCESS;
 			}
@@ -178,7 +214,7 @@ void execute_instructions(args_io_struct instruction_io) {
 		exit(EXIT_SUCCESS);
 	}
 	else if (strcmp(instruction, "cd") == 0) {
-		exit(EXIT_SUCCESS);
+		chdir(instruction_io.instruction_list[1]);
 	}
 	else if (lookup(instruction) != NOT_FOUND){
 		launch(instruction_io, &child_pid);
@@ -187,9 +223,13 @@ void execute_instructions(args_io_struct instruction_io) {
 		printf("%s: Command not found.\n", instruction);
 	}
 	
+
 	/* Wait for Child Process */	
-	if (child_pid > 0){
+	if (child_pid > 0 && instruction_io.wait_status == FRGRND){
 		waitpid(child_pid, NULL, 0);
+	}
+	if (instruction_io.wait_status == BCKGRND) {
+		printf("[1] %d\n", child_pid);
 	}
 
 	return;
