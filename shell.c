@@ -216,12 +216,13 @@ void execute_instructions(args_io_struct instruction_io) {
 	else if (strcmp(instruction, "cd") == 0) {
 		chdir(instruction_io.instruction_list[1]);
 	}
-	else if (lookup(instruction) != NOT_FOUND){
+	//else if (lookup(instruction) != NOT_FOUND){
+	else {
 		launch(instruction_io, &child_pid);
 	}
-	else {
-		printf("%s: Command not found.\n", instruction);
-	}
+//	else {
+//		printf("%s: Command not found.\n", instruction);
+//	}
 	
 
 	/* Wait for Child Process */	
@@ -236,7 +237,7 @@ void execute_instructions(args_io_struct instruction_io) {
 }
 
 void launch(args_io_struct instruction_io, pid_t *child_pid) {
-	char *envp [] = {NULL};
+	//char *envp [] = {NULL};
 
 	/* Forking */
 	*child_pid = fork();
@@ -249,7 +250,7 @@ void launch(args_io_struct instruction_io, pid_t *child_pid) {
 		/* Child Process */
 		else{
 			dup2(fileno(instruction_io.output_file), 1);
-			execve(instruction_io.instruction_list[0], instruction_io.instruction_list, envp);
+			execvp(instruction_io.instruction_list[0], instruction_io.instruction_list);
 		}
 		
 }
