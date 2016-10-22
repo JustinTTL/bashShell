@@ -41,17 +41,7 @@ char **separate_string(char *string, char *delim);
 void launch(args_io_struct instruction_io, pid_t *child_pid);
 char **re_size(char *string_list[], int *size);
 void background_handler(int signo);
-/* Operations Enumeration and lookup function */
-enum ops {CD, CLR, DIR, ENVIRON, ECHO, HELP, PAUSE, QUIT, ITEM_NONE};
-const char* lookup_table[] = { "cd", "clr", "dir", "environ", "echo", "help", "pause", "quit" };
 
-int lookup(char* op) {
-    const int available_ops = sizeof lookup_table / sizeof *lookup_table;
-    for(int i=0; i != available_ops; i++)
-        if (strcmp(op, lookup_table[i]) == 0)
-            return i;
-    return NOT_FOUND;
-}
 
 void background_handler(int signo) {
 	(void)signo;
@@ -61,7 +51,6 @@ void background_handler(int signo) {
 		RETURN_PROCESS = pid;
 	}	
 }
-
 
 /* Calls Shell infinite loop */
 int main(int argc, char *argv[]) {
