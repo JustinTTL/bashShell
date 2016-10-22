@@ -42,9 +42,7 @@ char **separate_string(char *string, char *delim);
 void launch(args_io_struct instruction_io, pid_t *child_pid);
 char **re_size(char *string_list[], int *size);
 void background_handler(int signo);
-void quit_handler(int signo);
 void quit_shell();
-
 
 void background_handler(int signo) {
 	(void)signo;
@@ -58,10 +56,6 @@ void background_handler(int signo) {
 	if (pid > 0) {
 		RETURN_PROCESS = pid;
 	}	
-}
-
-void quit_handler(int signo) {
-	(void)signo;
 }
 
 /* Calls Shell infinite loop */
@@ -298,7 +292,7 @@ char **separate_string(char *string, char *delim) {
 
 /* Safe shell quitting */
 void quit_shell(){
-	signal(SIGCHLD, quit_handler);
+	signal(SIGCHLD, SIG_DFL);
 
 	/* Properly begin exit sequence by waiting for ALL children */
 	pid_t child_pid;
