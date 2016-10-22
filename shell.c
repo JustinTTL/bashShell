@@ -65,6 +65,8 @@ void background_handler(int signo) {
 
 /* Calls Shell infinite loop */
 int main(int argc, char *argv[]) {
+	setenv("SHELL", getenv("PWD"), 1);
+	setenv("PATH", getenv("PWD"), 1);
 	FILE *fp;
 	if (argc > 2) {
 		fprintf(stderr, "Too many arguments\n");
@@ -250,7 +252,10 @@ void launch(args_io_struct instruction_io, pid_t *child_pid) {
 		/* Child Process */
 		else{
 			dup2(fileno(instruction_io.output_file), 1);
-			execvp(instruction_io.instruction_list[0], instruction_io.instruction_list);
+			if (execvp(instruction_io.instruction_list[0], instruction_io.instruction_list) == NOT_FOUND) {
+				printf("%s: command not found\n", instruction_io.instruction_list[0]);
+				exit(EXIT_FAILURE);
+			}
 		}
 		
 }
