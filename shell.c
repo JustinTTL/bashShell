@@ -15,6 +15,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <signal.h>
+#include <errno.h>
 
 #define BUFFER_SIZE 64
 #define NOT_FOUND -1
@@ -41,21 +42,32 @@ char **separate_string(char *string, char *delim);
 void launch(args_io_struct instruction_io, pid_t *child_pid);
 char **re_size(char *string_list[], int *size);
 void background_handler(int signo);
+void quit_handler(int signo);
+void quit_shell();
 
 
 void background_handler(int signo) {
 	(void)signo;
 	pid_t pid;
+
+	/* Terminate the Zombie Child Process */
 	pid = wait(NULL);
+	/* Update global flag with pid so next iteration of the 
+	 * shell will show the terminiation of the background process 
+	 */
 	if (pid > 0) {
 		RETURN_PROCESS = pid;
 	}	
 }
 
+void quit_handler(int signo) {
+	(void)signo;
+}
+
 /* Calls Shell infinite loop */
 int main(int argc, char *argv[]) {
-	setenv("SHELL", getenv("PWD"), 1);
 	setenv("PATH", getenv("PWD"), 1);
+
 	FILE *fp;
 	if (argc > 2) {
 		fprintf(stderr, "Too many arguments\n");
@@ -84,21 +96,30 @@ void run_shell(FILE *fp) {
 			printf("[1]+ Done\n");
 			RETURN_PROCESS = NOT_FOUND;
 		}
+		/* Interactive Mode */
 		if (fp == stdin) {
 			char buffer[200];
-			printf("%s > ", getcwd(buffer, sizeof(buffer)));
+			printf("(myshell) %s > ", getcwd(buffer, sizeof(buffer)));
 		}
-		input_size = (int)getline(&raw_prompt, &size, fp);	
+
+		input_size = (int)getline(&raw_prompt, &size, fp);
+
+
 
 		/* EOF Handling */
 		if(input_size == -1){
 			printf("\n");
 			free(raw_prompt);
-			exit(EXIT_SUCCESS);
+			quit_shell();
 		}
 
 		/* Removing the newline character at the end of getline */
 		char *prompt = strtok(raw_prompt, "\n");
+
+		/* Batch Mode Input Echoing*/
+		if (fp != stdin){
+			printf("%s\n",  prompt);
+		}
 
 		/* Pull out instructions in input */
 		process_instructions(prompt);
@@ -113,13 +134,13 @@ void process_instructions(char *prompt) {
 	/* Second iteration to seperate individual arguments within instruction */
 	for (int i = 0; instruction_list[i] != NULL; i++) {
 		char **argu_v = separate_string(instruction_list[i], " ");
+
 		args_io_struct instruction_io;
 		instruction_io.instruction_list = argu_v;
 		instruction_io.output_file = stdout;
 		instruction_io.wait_status = FRGRND;
 
 		int status = handle_pipe_background(&instruction_io);
-
 
 		if (status == ERROR){
 			free(argu_v);
@@ -144,6 +165,20 @@ int handle_pipe_background(args_io_struct *instruction_io) {
 	char *io_mode;
 
 	for (i = 0; instruction_io -> instruction_list[i] != NULL; i++) {
+		if (strcmp(instruction_io -> instruction_list[i], "&") == 0){
+			if (instruction_io -> instruction_list[i+1] == NULL) {
+				instruction_io -> wait_status = BCKGRND;
+				instruction_io -> instruction_list[i] = NULL;
+			}
+			else {
+				printf("Error: Misplaced & token\n");
+				return ERROR;
+			}
+
+		}
+	}
+
+	for (i = 0; instruction_io -> instruction_list[i] != NULL; i++) {
 		/* Overwrite Mode */
 		if (strcmp(instruction_io -> instruction_list[i], ">") == 0){
 			pipe_loc = i;
@@ -153,17 +188,6 @@ int handle_pipe_background(args_io_struct *instruction_io) {
 		if (strcmp(instruction_io -> instruction_list[i], ">>") == 0){
 			pipe_loc = i;
 			io_mode = "a";
-		}
-		if (strcmp(instruction_io -> instruction_list[i], "&") == 0){
-			if (instruction_io -> instruction_list[i + 1] == NULL) {
-				instruction_io -> wait_status = BCKGRND;
-				instruction_io -> instruction_list[i] = NULL;
-			}
-			else {
-				printf("Error: Misplaced & token\n");
-				return ERROR;
-			}
-
 		}
 	}
 
@@ -202,7 +226,7 @@ void execute_instructions(args_io_struct instruction_io) {
 	pid_t child_pid = 0;
 
 	if (strcmp(instruction, "quit") == 0) {
-		exit(EXIT_SUCCESS);
+		quit_shell();
 	}
 	else if (strcmp(instruction, "cd") == 0) {
 		chdir(instruction_io.instruction_list[1]);
@@ -211,9 +235,6 @@ void execute_instructions(args_io_struct instruction_io) {
 	else {
 		launch(instruction_io, &child_pid);
 	}
-//	else {
-//		printf("%s: Command not found.\n", instruction);
-//	}
 	
 
 	/* Wait for Child Process */	
@@ -273,4 +294,25 @@ char **separate_string(char *string, char *delim) {
 	}
 	string_list[i] = NULL;
 	return string_list;
+}
+
+/* Safe shell quitting */
+void quit_shell(){
+	signal(SIGCHLD, quit_handler);
+
+	/* Properly begin exit sequence by waiting for ALL children */
+	pid_t child_pid;
+
+	printf("Begin Exit Sequence: Waiting for children termination\n");
+
+	while ((child_pid = wait(NULL))){
+		//child_pid = wait(NULL);
+		if (errno == ECHILD){
+			break;
+		}
+		fprintf(stderr,		"%d terminated\n", (int)child_pid);
+	}
+
+	printf("Exitting\n");
+	exit(EXIT_SUCCESS);
 }
