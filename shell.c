@@ -2,11 +2,12 @@
 *	shell.c
 *
 *
+*
 */
 
+/* Libraries */
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <readline/readline.h>
 #include <termcap.h>
 #include <string.h>
@@ -16,7 +17,9 @@
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
+#include <limits.h>
 
+/* Constant Flags */
 #define BUFFER_SIZE 64
 #define NOT_FOUND -1
 #define SUCCESS 1
@@ -24,9 +27,10 @@
 #define BCKGRND 0
 #define FRGRND 1
 
-//static int PROMPT_READY = 1;
+/* Global flag */
 static int RETURN_PROCESS = NOT_FOUND;
 
+/* Holds instruction args and FP for output */
 typedef struct args_io_struct{
 	char **instruction_list;
 	FILE *output_file;
@@ -34,6 +38,7 @@ typedef struct args_io_struct{
 }args_io_struct;
 
 /* Function Declaration */
+void set_environ_variables(char *executable);
 void run_shell(FILE *fp);
 void process_instructions(char *prompt);
 void execute_instructions(args_io_struct instruction_io);
@@ -44,6 +49,7 @@ char **re_size(char *string_list[], int *size);
 void background_handler(int signo);
 void quit_shell();
 
+/* Handles any children that are background processes */
 void background_handler(int signo) {
 	(void)signo;
 	pid_t pid;
@@ -58,9 +64,10 @@ void background_handler(int signo) {
 	}	
 }
 
-/* Calls Shell infinite loop */
 int main(int argc, char *argv[]) {
-	setenv("PATH", getenv("PWD"), 1);
+	
+	/* Sets up environment */
+	set_environ_variables(argv[0]);
 
 	FILE *fp;
 	if (argc > 2) {
@@ -80,14 +87,43 @@ int main(int argc, char *argv[]) {
 	return(EXIT_SUCCESS);
 }
 
+void set_environ_variables(char *executable) {
+	/* First set shell environment variable */
+	char buffer[PATH_MAX];
+    realpath(executable, buffer);
+	setenv("shell", buffer, 1);
+
+	/* Then set path to the directory of the shell executable 
+	by first getting current directory, and adding given executable 
+	(in argv) to get path back to original directory */
+	getcwd(buffer, sizeof(buffer));
+	strcat(buffer, "/");	
+	/* Add directories one by one until at directory for executable */
+	char **executable_path = separate_string(executable, "/");
+	for (int i = 0; executable_path[i] != NULL; i++) {
+		if (executable_path[i + 1] != NULL) {
+			strcat(buffer, executable_path[i]);
+			strcat(buffer, "/");
+
+		}
+	}
+	/* If executable was called in its native directory */
+	strtok(buffer, ".");
+	setenv("EXEC", buffer, 1);
+}
+/* Main shell process */
 void run_shell(FILE *fp) {
+	/* Setup signal handler for child processes */
 	signal(SIGCHLD, background_handler);
 	while (1) {
 		char *raw_prompt = NULL;
 		size_t size = 0;
 		int input_size = 0;
+
+		/* If there is a background process that has finished */
 		if (RETURN_PROCESS != NOT_FOUND) {
 			printf("[1]+ Done\n");
+			/* Reset flag */
 			RETURN_PROCESS = NOT_FOUND;
 		}
 		/* Interactive Mode */
@@ -97,8 +133,6 @@ void run_shell(FILE *fp) {
 		}
 
 		input_size = (int)getline(&raw_prompt, &size, fp);
-
-
 
 		/* EOF Handling */
 		if(input_size == -1){
@@ -152,7 +186,7 @@ void process_instructions(char *prompt) {
 	return;
 }
 
-
+/* Determines whether instructon pipes to a file or runs in background*/
 int handle_pipe_background(args_io_struct *instruction_io) {
 	int pipe_loc = NOT_FOUND;
 	int i;
@@ -223,7 +257,13 @@ void execute_instructions(args_io_struct instruction_io) {
 		quit_shell();
 	}
 	else if (strcmp(instruction, "cd") == 0) {
-		chdir(instruction_io.instruction_list[1]);
+		if (chdir(instruction_io.instruction_list[1]) == NOT_FOUND) {
+			fprintf(stderr, "%s: No such file or directory\n", instruction_io.instruction_list[1]);
+		}
+		else {
+		char buffer[PATH_MAX];
+		setenv("PWD", getcwd(buffer, sizeof(buffer)), 1);
+		}
 	}
 	//else if (lookup(instruction) != NOT_FOUND){
 	else {
@@ -243,8 +283,33 @@ void execute_instructions(args_io_struct instruction_io) {
 }
 
 void launch(args_io_struct instruction_io, pid_t *child_pid) {
-	//char *envp [] = {NULL};
 
+
+	char path_buffer[PATH_MAX];
+	char exec_buffer[PATH_MAX];
+	char parent_buffer[PATH_MAX];
+	char shell_buffer[PATH_MAX];
+
+	strcpy(path_buffer, "PATH=");
+	strcpy(exec_buffer, "EXEC=");
+	strcpy(parent_buffer, "parent=");
+	strcpy(shell_buffer, "shell=");
+
+	char *path = getenv("PATH");
+	char *exec = getenv("EXEC");
+	char *shell = getenv("shell");
+
+	strcat(path_buffer, path);
+	strcat(exec_buffer, exec);
+	strcat(parent_buffer, shell);
+	strcat(shell_buffer, shell);
+
+
+	char *envp [] = {parent_buffer, path_buffer, exec_buffer, NULL};
+	char command[PATH_MAX];
+	strcpy(command, exec);
+	strcat(command, "/");
+	strcat(command, instruction_io.instruction_list[0]);
 	/* Forking */
 	*child_pid = fork();
 		/* Error Checking or Parent Breaking*/
@@ -256,9 +321,11 @@ void launch(args_io_struct instruction_io, pid_t *child_pid) {
 		/* Child Process */
 		else{
 			dup2(fileno(instruction_io.output_file), 1);
-			if (execvp(instruction_io.instruction_list[0], instruction_io.instruction_list) == NOT_FOUND) {
-				printf("%s: command not found\n", instruction_io.instruction_list[0]);
-				exit(EXIT_FAILURE);
+			if (execve(instruction_io.instruction_list[0], instruction_io.instruction_list, envp) == NOT_FOUND) {
+				if (execve(command, instruction_io.instruction_list, envp) == NOT_FOUND) {
+					fprintf(stderr, "%s: command not found\n", instruction_io.instruction_list[0]);
+					exit(EXIT_FAILURE);
+				}
 			}
 		}
 		
