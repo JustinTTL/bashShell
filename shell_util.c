@@ -1,18 +1,38 @@
 /*
 *	shell_util.c
 *   
+*	Utility functions for shell.c
+*
+*	Contains the methods:
+*
+*		set_environ_variables(char * executable)
+*		make_env(char **envp[])
+*		separate_string(char *string, char *delim)
+*		str_list_length(char **str_list)
+*   
+*   by 
+*     	Justin Tze Tsun Lee
+*     	Matthew Carrington-Fair
+*     	Tomer Shapira
+*
 */
 
 #include "shell_util.h"
 
+
+/* Utility function to initilize environment vars */
 void set_environ_variables(char *executable) {
 	/* First set shell environment variable */
 	char buffer[PATH_MAX];
     realpath(executable, buffer);
 	setenv("shell", buffer, 1);
-	char executable_path[PATH_MAX];
+
+	/* Then, construct path to directory of executables */
+	char executable_path[PATH_MAX] = {"\0"};
 	char **dir = separate_string(buffer, "/");
 	for (int i = 0; dir != NULL; i++) {
+		/* Stops at second to last segment which would
+		simply contain shell executable name */
 		if (dir[i + 1] == NULL) {
 			dir[i] = NULL;
 			break;
@@ -22,13 +42,15 @@ void set_environ_variables(char *executable) {
 			strcat(executable_path, dir[i]);
 		}
 	}
-	printf("dir: %s\n", executable_path);
-
+	free(dir);
 	strcat(executable_path, "/");
+	/* Sets it to EXEC var */
 	setenv("EXEC", executable_path, 1);
 }
-
+/* Constructs a list of environment variables to pass when launching child */
 void make_env(char **envp[]){
+
+	/* Creates PATH, EXEC, parent, and shell vars */
 	char path_buffer[PATH_MAX];
 	char exec_buffer[PATH_MAX];
 	char parent_buffer[PATH_MAX];
@@ -43,6 +65,7 @@ void make_env(char **envp[]){
 	char *exec = getenv("EXEC");
 	char *shell = getenv("shell");
 
+	/* Appends variable to end of key-value assignment */
 	strcat(path_buffer, path);
 	strcat(exec_buffer, exec);
 	strcat(parent_buffer, shell);
@@ -80,7 +103,7 @@ char **separate_string(char *string, char *delim) {
 	string_list[i] = NULL;
 	return string_list;
 }
-
+/* Small helper function to retrieve length of a list */
 int str_list_length(char **str_list){
 	int len = 0;
 	while (str_list[len] != NULL){

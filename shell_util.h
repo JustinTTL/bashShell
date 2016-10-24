@@ -1,5 +1,12 @@
 /*
 *	shell_util.h
+*
+*	This file contains utilities and helper functions for 
+*	shell.c
+*
+*	It initializes the state of the shell, initializes the state of any new
+*	processes that are launched, and provides helper methods in separating 
+*	instructions and arguments.
 *   
 */
 
@@ -29,7 +36,12 @@
 
 
 /* Function Declaration */
+
+/* Inits environment variables for shell */
 void set_environ_variables(char *executable);
+/* Creates environment arguments for child processes */
 void make_env(char **envp[]);
+/* Separates a string based on passed deliminator into list*/
 char **separate_string(char *string, char *delim);
+/* Returns size of list */
 int str_list_length(char **str_list);
