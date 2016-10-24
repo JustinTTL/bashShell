@@ -19,6 +19,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <limits.h>
+#include <pthread.h>
 
 /* Constant Flags */
 #define BUFFER_SIZE 64
@@ -51,6 +52,7 @@ void background_handler(int signo);
 void make_env(char **envp[]);
 void quit_shell();
 int str_list_length(char **str_list);
+void *handle_instruction(void *instruction_list);
 
 /* Handles any children that are background processes */
 void background_handler(int signo) {
@@ -160,10 +162,29 @@ void run_shell(FILE *fp) {
 /* Executes instructions in a line */
 void process_instructions(char *prompt) {
 	char **instruction_list = separate_string(prompt, ";");
-
+	int instruction_num = str_list_length(instruction_list);
+	pthread_t threads[instruction_num];
 	/* Second iteration to seperate individual arguments within instruction */
 	for (int i = 0; instruction_list[i] != NULL; i++) {
-		char **argu_v = separate_string(instruction_list[i], " ");
+		if (pthread_create(&threads[i],
+			NULL,
+			handle_instruction,
+			(void *)instruction_list[i])) {
+			fprintf(stderr, "Error making threads\n");
+			free(instruction_list);
+			return;
+		}
+	}
+	for (int i = 0; i < instruction_num; i++) {
+		pthread_join(threads[i], NULL);
+	}
+
+	free(instruction_list);
+	return;
+}
+void *handle_instruction(void *instruction_list) {
+	char *instruction = (char*)instruction_list;
+		char **argu_v = separate_string(instruction, " ");
 
 		args_io_struct instruction_io;
 		instruction_io.instruction_list = argu_v;
@@ -182,11 +203,9 @@ void process_instructions(char *prompt) {
 				fclose(instruction_io.output_file);
 			}
 		}
-	}
-
-	free(instruction_list);
-	return;
+		return NULL;
 }
+
 
 /* Determines whether instructon pipes to a file or runs in background*/
 int handle_pipe_background(args_io_struct *instruction_io) {
