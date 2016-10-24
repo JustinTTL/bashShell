@@ -88,13 +88,12 @@ void run_shell(FILE *fp) {
 		}
 
 		/* Removing the newline character at the end of getline */
-		char *prompt = strtok(raw_prompt, "\n");
 
+		char *prompt = strtok(raw_prompt, "\n");
 		/* Batch Mode Input Echoing*/
 		if (fp != stdin){
 			printf("%s\n",  prompt);
 		}
-
 		/* Pull out instructions in input */
 		process_instructions(prompt);
 		free(raw_prompt);
@@ -104,7 +103,6 @@ void run_shell(FILE *fp) {
 /* Executes instructions in a line */
 void process_instructions(char *prompt) {
 	char **instruction_list = separate_string(prompt, ";");
-
 	if (CONCURR){
 		int instruction_num = str_list_length(instruction_list);
 		pthread_t threads[instruction_num];
@@ -127,11 +125,14 @@ void process_instructions(char *prompt) {
 	}
 	else {
 		for (int i = 0; instruction_list[i] != NULL; i++) {
+			if (strcmp(instruction_list[i], "quit") == 0 ) {
+				free(instruction_list);
+				quit_shell();
+			}
 			handle_instruction((void *)instruction_list[i]);
 		}
+		free(instruction_list);
 	}
-
-	free(instruction_list);
 	return;
 }
 
@@ -152,10 +153,12 @@ void *handle_instruction(void *instruction_list) {
 	else if (argu_v[0] != NULL) {
 		execute_instructions(instruction_io);
 		free(argu_v);
+
 		if (instruction_io.output_file != stdout){
 			fclose(instruction_io.output_file);
 		}
 	}
+
 	return NULL;
 }
 
@@ -231,10 +234,7 @@ void execute_instructions(args_io_struct instruction_io) {
 	char *instruction = instruction_io.instruction_list[0];
 	pid_t child_pid = 0;
 
-	if (strcmp(instruction, "quit") == 0) {
-		quit_shell();
-	}
-	else if (strcmp(instruction, "cd") == 0) {
+	if (strcmp(instruction, "cd") == 0) {
 		if (chdir(instruction_io.instruction_list[1]) == NOT_FOUND) {
 			fprintf(stderr, "%s: No such file or directory\n", instruction_io.instruction_list[1]);
 		}
@@ -285,7 +285,6 @@ void launch(args_io_struct instruction_io, pid_t *child_pid) {
 				}
 				i++;
 			}
-
 			if (use_path){
 				char command[PATH_MAX];
 				strcpy(command, getenv("EXEC"));
