@@ -92,24 +92,22 @@ void set_environ_variables(char *executable) {
 	char buffer[PATH_MAX];
     realpath(executable, buffer);
 	setenv("shell", buffer, 1);
-
-	/* Then set path to the directory of the shell executable 
-	by first getting current directory, and adding given executable 
-	(in argv) to get path back to original directory */
-	getcwd(buffer, sizeof(buffer));
-	strcat(buffer, "/");	
-	/* Add directories one by one until at directory for executable */
-	char **executable_path = separate_string(executable, "/");
-	for (int i = 0; executable_path[i] != NULL; i++) {
-		if (executable_path[i + 1] != NULL) {
-			strcat(buffer, executable_path[i]);
-			strcat(buffer, "/");
-
+	char executable_path[PATH_MAX];
+	char **dir = separate_string(buffer, "/");
+	for (int i = 0; dir != NULL; i++) {
+		if (dir[i + 1] == NULL) {
+			dir[i] = NULL;
+			break;
+		}
+		else {
+			strcat(executable_path, "/");
+			strcat(executable_path, dir[i]);
 		}
 	}
-	/* If executable was called in its native directory */
-	strtok(buffer, ".");
-	setenv("EXEC", buffer, 1);
+	printf("dir: %s\n", executable_path);
+
+	
+	setenv("EXEC", executable_path, 1);
 }
 /* Main shell process */
 void run_shell(FILE *fp) {
