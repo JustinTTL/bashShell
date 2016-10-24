@@ -1,5 +1,8 @@
 # Makefile for Project 1 COMP 111
-# Matthew Carrington-fair
+#   by 
+#    	Justin Tze Tsun Lee
+#   	Matthew Carrington-Fair
+#     	Tomer Shapira 
 
 ############## Variables ###############
 
@@ -21,8 +24,8 @@ all: shell echo pause clr dir help environ
 	$(CC) $(CFLAGS) -c $< -o $@
 
 ## Linking step (.o -> executable program)
-shell: shell.o shell_util.o
-	$(CC) -o shell shell.o shell_util.o $(CFLAGS) 
+shell: shell.o shell_util.o shell_ops.o
+	$(CC) -o shell shell.o shell_util.o shell_ops.o $(CFLAGS) 
 echo: echo.o
 	$(CC) -o echo echo.o $(CFLAGS) 
 pause: pause.o

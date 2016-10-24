@@ -17,7 +17,7 @@
 */
 
 /* Declaration File and Parsing Environment Helper Files */
-#include "shell_func.h"
+#include "shell_ops.h"
 #include "shell_util.h"
 
 
