@@ -272,7 +272,6 @@ void execute_instructions(args_io_struct instruction_io) {
 		launch(instruction_io, &child_pid);
 	}
 	
-
 	/* Wait for Child Process */	
 	if (child_pid > 0 && instruction_io.wait_status == FRGRND){
 		waitpid(child_pid, NULL, 0);
@@ -391,8 +390,6 @@ int str_list_length(char **str_list){
 	}
 	return len;
 }
-
-
 
 
 /* Safe shell quitting */

@@ -4,6 +4,6 @@
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
-    system("more -d manual.txt");
+    system("more -df manual.txt");
 	
 } 
