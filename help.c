@@ -14,12 +14,14 @@ int main(int argc, char *argv[]) {
     char *more_cmd = "more -df ";
 
     size_t cmd_buf_len = strlen(exec_path) + strlen(file_name) + strlen(more_cmd);
-    char cmd_buf[cmd_buf_len];
+    char *cmd_buf = malloc(cmd_buf_len + 1);
 
     strcat(cmd_buf, more_cmd);
    	strcat(cmd_buf, exec_path);
    	strcat(cmd_buf, file_name);
 
     system(cmd_buf);
+
+    free(cmd_buf);
     return EXIT_SUCCESS;
 } 
