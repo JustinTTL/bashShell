@@ -6,6 +6,7 @@
 */
 
 /* Libraries */
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <readline/readline.h>
@@ -47,7 +48,9 @@ char **separate_string(char *string, char *delim);
 void launch(args_io_struct instruction_io, pid_t *child_pid);
 char **re_size(char *string_list[], int *size);
 void background_handler(int signo);
+void make_env(char **envp[]);
 void quit_shell();
+int str_list_length(char **str_list);
 
 /* Handles any children that are background processes */
 void background_handler(int signo) {
@@ -106,9 +109,10 @@ void set_environ_variables(char *executable) {
 	}
 	printf("dir: %s\n", executable_path);
 
-	
+	strcat(executable_path, "/");
 	setenv("EXEC", executable_path, 1);
 }
+
 /* Main shell process */
 void run_shell(FILE *fp) {
 	/* Setup signal handler for child processes */
@@ -281,8 +285,53 @@ void execute_instructions(args_io_struct instruction_io) {
 }
 
 void launch(args_io_struct instruction_io, pid_t *child_pid) {
+	char *prog_invoc = instruction_io.instruction_list[0];
 
+	char **envp;
+	make_env(&envp);
 
+	/* Forking */
+	*child_pid = fork();
+		/* Error Checking or Parent Breaking*/
+		if(*child_pid != 0){  
+			if(*child_pid < 0)
+				fprintf(stderr, "Forking Error\n");
+			return;
+		}
+		/* Child Process */
+		else{
+			dup2(fileno(instruction_io.output_file), 1);
+
+			int use_path = 1;
+			int i = 0;
+			while(prog_invoc[i] != '\0'){
+				if(prog_invoc[i] == '/'){
+					use_path = 0;
+				}
+				i++;
+			}
+
+			if (use_path){
+				char command[PATH_MAX];
+				strcpy(command, getenv("EXEC"));
+				strcat(command, instruction_io.instruction_list[0]);
+				if (execve(command, instruction_io.instruction_list, envp) == NOT_FOUND) {
+					fprintf(stderr, "%s: command not found\n", instruction_io.instruction_list[0]);
+					exit(EXIT_FAILURE);
+				}
+
+			} 
+			else {
+				if (execve(instruction_io.instruction_list[0], instruction_io.instruction_list, envp) == NOT_FOUND) {
+					fprintf(stderr, "%s: command not found\n", instruction_io.instruction_list[0]);
+					exit(EXIT_FAILURE);
+				}
+			}
+		}
+		
+}
+
+void make_env(char **envp[]){
 	char path_buffer[PATH_MAX];
 	char exec_buffer[PATH_MAX];
 	char parent_buffer[PATH_MAX];
@@ -302,32 +351,12 @@ void launch(args_io_struct instruction_io, pid_t *child_pid) {
 	strcat(parent_buffer, shell);
 	strcat(shell_buffer, shell);
 
-
-	char *envp [] = {parent_buffer, path_buffer, exec_buffer, NULL};
-	char command[PATH_MAX];
-	strcpy(command, exec);
-	strcat(command, "/");
-	strcat(command, instruction_io.instruction_list[0]);
-	/* Forking */
-	*child_pid = fork();
-		/* Error Checking or Parent Breaking*/
-		if(*child_pid != 0){  
-			if(*child_pid < 0)
-				fprintf(stderr, "Forking Error\n");
-			return;
-		}
-		/* Child Process */
-		else{
-			dup2(fileno(instruction_io.output_file), 1);
-			if (execve(instruction_io.instruction_list[0], instruction_io.instruction_list, envp) == NOT_FOUND) {
-				if (execve(command, instruction_io.instruction_list, envp) == NOT_FOUND) {
-					fprintf(stderr, "%s: command not found\n", instruction_io.instruction_list[0]);
-					exit(EXIT_FAILURE);
-				}
-			}
-		}
-		
+	char *environ [] = {parent_buffer, path_buffer, exec_buffer, shell_buffer, NULL};
+	*envp = environ;
+	return;
 }
+
+
 /* Takes string and seperates by delim into several strings */
 char **separate_string(char *string, char *delim) {
 
@@ -355,6 +384,17 @@ char **separate_string(char *string, char *delim) {
 	return string_list;
 }
 
+int str_list_length(char **str_list){
+	int len = 0;
+	while (str_list[len] != NULL){
+		len++;
+	}
+	return len;
+}
+
+
+
+
 /* Safe shell quitting */
 void quit_shell(){
 	signal(SIGCHLD, SIG_DFL);
@@ -369,7 +409,7 @@ void quit_shell(){
 		if (errno == ECHILD){
 			break;
 		}
-		fprintf(stderr,		"%d terminated\n", (int)child_pid);
+		fprintf(stderr,	"%d terminated\n", (int)child_pid);
 	}
 
 	printf("Exitting\n");
