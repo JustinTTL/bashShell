@@ -1,0 +1,35 @@
+Shell User Manual
+
+Name
+    Help Guide
+
+Description
+    
+    This manual outlines the various commands that this shell supports and its usage.
+
+Usage
+
+    Here are the following commands supported by the shell, along with their invocation and usage.
+
+        cd <directory> : This command changes the current directory to the one specificed in the <directory> argument. If no argument is present, simply reports the current directory. When invoking this command the PWD environment variable changes.
+
+        clr : Clears the screen
+
+        dir <directory> Lists the contents of the directory specificed by the <directory> argument. If no argument is present, simply lists contents of the current directory. 
+
+        environ: Lists all the environment strings of the shell. 
+
+        echo <comment> : Displays <comment> and then prints a newline.
+
+        help : Invoke this user manual
+
+        pause  : Pauses operation of the shell until 'Enter' is pressed.
+
+        quit : Waits for all child processes to finish and then exits the shell. User may also use 'Cntrl-D' to end their session. 
+
+    The shell also supports standard program invocation, simply by running the executable as "./<executable>". To run any of the above commands or external programs in background, append '&' to the end of the command. 
+
+    In addition, the shell supports I/O redirection with the use of the '>' and '>>' arguments. 
+    
+        '>' creates new file if one does not exist or replaces existing content within the specified file
+        '>>' creates new file if one does not exist or appends content to specificed file. 
