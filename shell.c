@@ -21,6 +21,10 @@
 #include <limits.h>
 #include <pthread.h>
 
+
+/* Concurrency Flag */
+#define CONCURR 0
+
 /* Constant Flags */
 #define BUFFER_SIZE 64
 #define NOT_FOUND -1
@@ -115,10 +119,14 @@ void set_environ_variables(char *executable) {
 	setenv("EXEC", executable_path, 1);
 }
 
+
 /* Main shell process */
 void run_shell(FILE *fp) {
 	/* Setup signal handler for child processes */
-	signal(SIGCHLD, background_handler);
+	if (!CONCURR){
+		signal(SIGCHLD, background_handler);
+	}
+
 	while (1) {
 		char *raw_prompt = NULL;
 		size_t size = 0;
@@ -162,21 +170,31 @@ void run_shell(FILE *fp) {
 /* Executes instructions in a line */
 void process_instructions(char *prompt) {
 	char **instruction_list = separate_string(prompt, ";");
-	int instruction_num = str_list_length(instruction_list);
-	pthread_t threads[instruction_num];
-	/* Second iteration to seperate individual arguments within instruction */
-	for (int i = 0; instruction_list[i] != NULL; i++) {
-		if (pthread_create(&threads[i],
-			NULL,
-			handle_instruction,
-			(void *)instruction_list[i])) {
-			fprintf(stderr, "Error making threads\n");
-			free(instruction_list);
-			return;
+
+	if (CONCURR){
+		int instruction_num = str_list_length(instruction_list);
+		pthread_t threads[instruction_num];
+
+		/* Second iteration to seperate individual arguments within instruction */
+		for (int i = 0; instruction_list[i] != NULL; i++) {
+			if (pthread_create(&threads[i],
+				NULL,
+				handle_instruction,
+				(void *)instruction_list[i])) {
+				fprintf(stderr, "Error making threads\n");
+				free(instruction_list);
+				return;
+			}
+		}
+
+		for (int i = 0; i < instruction_num; i++) {
+			pthread_join(threads[i], NULL);
 		}
 	}
-	for (int i = 0; i < instruction_num; i++) {
-		pthread_join(threads[i], NULL);
+	else {
+		for (int i = 0; instruction_list[i] != NULL; i++) {
+			handle_instruction((void *)instruction_list[i]);
+		}
 	}
 
 	free(instruction_list);
@@ -184,26 +202,26 @@ void process_instructions(char *prompt) {
 }
 void *handle_instruction(void *instruction_list) {
 	char *instruction = (char*)instruction_list;
-		char **argu_v = separate_string(instruction, " ");
+	char **argu_v = separate_string(instruction, " ");
 
-		args_io_struct instruction_io;
-		instruction_io.instruction_list = argu_v;
-		instruction_io.output_file = stdout;
-		instruction_io.wait_status = FRGRND;
+	args_io_struct instruction_io;
+	instruction_io.instruction_list = argu_v;
+	instruction_io.output_file = stdout;
+	instruction_io.wait_status = FRGRND;
 
-		int status = handle_pipe_background(&instruction_io);
+	int status = handle_pipe_background(&instruction_io);
 
-		if (status == ERROR){
-			free(argu_v);
-		} 
-		else if (argu_v[0] != NULL) {
-			execute_instructions(instruction_io);
-			free(argu_v);
-			if (instruction_io.output_file != stdout){
-				fclose(instruction_io.output_file);
-			}
+	if (status == ERROR){
+		free(argu_v);
+	} 
+	else if (argu_v[0] != NULL) {
+		execute_instructions(instruction_io);
+		free(argu_v);
+		if (instruction_io.output_file != stdout){
+			fclose(instruction_io.output_file);
 		}
-		return NULL;
+	}
+	return NULL;
 }
 
 
@@ -215,6 +233,10 @@ int handle_pipe_background(args_io_struct *instruction_io) {
 
 	for (i = 0; instruction_io -> instruction_list[i] != NULL; i++) {
 		if (strcmp(instruction_io -> instruction_list[i], "&") == 0){
+			if (CONCURR){
+				fprintf (stderr, "Error: Shell in concurrent mode, background operation illegal\n");
+				return ERROR;
+			}
 			if (instruction_io -> instruction_list[i+1] == NULL) {
 				instruction_io -> wait_status = BCKGRND;
 				instruction_io -> instruction_list[i] = NULL;
