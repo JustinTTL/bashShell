@@ -1,31 +1,24 @@
 /*
 *	shell.c
-*
-*
+*   
+*	A bash-like shell with I/O redirection, program invocation, custom 
+*	environments and standard functions and concurrency options.
+*   
+*   by 
+*     	Justin Tze Tsun Lee
+*     	Matthew Carrington-Fair
+*     	Tomer Shapira
 *
 */
 
-/* Libraries */
-#define _GNU_SOURCE
-#include <stdlib.h>
-#include <stdio.h>
-#include <readline/readline.h>
-#include <termcap.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <assert.h>
-#include <pthread.h>
-#include <signal.h>
-#include <errno.h>
-#include <limits.h>
-#include <pthread.h>
-
+/* Declaration File and Parsing Environment Helper Files */
+#include "shell.h"
+#include "shell_util.h"
 
 /* Concurrency Flag */
 #define CONCURR 0
 
-/* Constant Flags */
+/* CODE Flags */
 #define BUFFER_SIZE 64
 #define NOT_FOUND -1
 #define SUCCESS 1
@@ -33,45 +26,9 @@
 #define BCKGRND 0
 #define FRGRND 1
 
-/* Global flag */
+/* Global flag for terminated child signal handler*/
 static int RETURN_PROCESS = NOT_FOUND;
 
-/* Holds instruction args and FP for output */
-typedef struct args_io_struct{
-	char **instruction_list;
-	FILE *output_file;
-	int wait_status;
-}args_io_struct;
-
-/* Function Declaration */
-void set_environ_variables(char *executable);
-void run_shell(FILE *fp);
-void process_instructions(char *prompt);
-void execute_instructions(args_io_struct instruction_io);
-int handle_pipe_background(args_io_struct *instruction_io);
-char **separate_string(char *string, char *delim);
-void launch(args_io_struct instruction_io, pid_t *child_pid);
-char **re_size(char *string_list[], int *size);
-void background_handler(int signo);
-void make_env(char **envp[]);
-void quit_shell();
-int str_list_length(char **str_list);
-void *handle_instruction(void *instruction_list);
-
-/* Handles any children that are background processes */
-void background_handler(int signo) {
-	(void)signo;
-	pid_t pid;
-
-	/* Terminate the Zombie Child Process */
-	pid = wait(NULL);
-	/* Update global flag with pid so next iteration of the 
-	 * shell will show the terminiation of the background process 
-	 */
-	if (pid > 0) {
-		RETURN_PROCESS = pid;
-	}	
-}
 
 int main(int argc, char *argv[]) {
 	
@@ -94,29 +51,6 @@ int main(int argc, char *argv[]) {
 	}
 	run_shell(fp);
 	return(EXIT_SUCCESS);
-}
-
-void set_environ_variables(char *executable) {
-	/* First set shell environment variable */
-	char buffer[PATH_MAX];
-    realpath(executable, buffer);
-	setenv("shell", buffer, 1);
-	char executable_path[PATH_MAX];
-	char **dir = separate_string(buffer, "/");
-	for (int i = 0; dir != NULL; i++) {
-		if (dir[i + 1] == NULL) {
-			dir[i] = NULL;
-			break;
-		}
-		else {
-			strcat(executable_path, "/");
-			strcat(executable_path, dir[i]);
-		}
-	}
-	printf("dir: %s\n", executable_path);
-
-	strcat(executable_path, "/");
-	setenv("EXEC", executable_path, 1);
 }
 
 
@@ -200,6 +134,7 @@ void process_instructions(char *prompt) {
 	free(instruction_list);
 	return;
 }
+
 void *handle_instruction(void *instruction_list) {
 	char *instruction = (char*)instruction_list;
 	char **argu_v = separate_string(instruction, " ");
@@ -371,66 +306,22 @@ void launch(args_io_struct instruction_io, pid_t *child_pid) {
 		
 }
 
-void make_env(char **envp[]){
-	char path_buffer[PATH_MAX];
-	char exec_buffer[PATH_MAX];
-	char parent_buffer[PATH_MAX];
-	char shell_buffer[PATH_MAX];
+/* Handles any children that are background processes */
+void background_handler(int signo) {
+	(void)signo;
+	pid_t pid;
 
-	strcpy(path_buffer, "PATH=");
-	strcpy(exec_buffer, "EXEC=");
-	strcpy(parent_buffer, "parent=");
-	strcpy(shell_buffer, "shell=");
-
-	char *path = getenv("PATH");
-	char *exec = getenv("EXEC");
-	char *shell = getenv("shell");
-
-	strcat(path_buffer, path);
-	strcat(exec_buffer, exec);
-	strcat(parent_buffer, shell);
-	strcat(shell_buffer, shell);
-
-	char *environ [] = {parent_buffer, path_buffer, exec_buffer, shell_buffer, NULL};
-	*envp = environ;
-	return;
+	/* Terminate the Zombie Child Process */
+	pid = wait(NULL);
+	/* Update global flag with pid so next iteration of the 
+	 * shell will show the terminiation of the background process 
+	 */
+	if (pid > 0) {
+		RETURN_PROCESS = pid;
+	}	
 }
 
 
-/* Takes string and seperates by delim into several strings */
-char **separate_string(char *string, char *delim) {
-
-	/* Init the size */
-	int size = BUFFER_SIZE;
-	char **string_list = malloc(BUFFER_SIZE * sizeof(*string_list));
-	assert(string_list != NULL);
-
-	/* Starts loop to pull out strings until NULL */
-	char *indiv_string = strtok(string, delim);
-	int i = 0;
-	while (indiv_string != NULL) {
-		string_list[i] = indiv_string;
-		i++;
-
-		/* Resizes if reaches buffer limit */
-		if (i == size) {
-			size = size * 2;
-			string_list = realloc(string_list, size * sizeof(*string_list));
-			assert(string_list != NULL);
-		}
-		indiv_string = strtok(NULL, delim);
-	}
-	string_list[i] = NULL;
-	return string_list;
-}
-
-int str_list_length(char **str_list){
-	int len = 0;
-	while (str_list[len] != NULL){
-		len++;
-	}
-	return len;
-}
 
 
 /* Safe shell quitting */
